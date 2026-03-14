@@ -2,8 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
-from dateutil.relativedelta import relativedelta
-import math
+import calendar
 
 st.set_page_config(page_title="Rivelle EC Finance Planner", layout="wide")
 
@@ -31,6 +30,14 @@ OTP_DATE = datetime(2026, 6, 1)
 TOP_DATE = datetime(2030, 6, 1)
 CSC_DATE = datetime(2033, 6, 1)
 STRESS_TEST_RATE = 0.04
+
+
+def add_months(dt: datetime, months: int) -> datetime:
+    month = dt.month - 1 + months
+    year = dt.year + month // 12
+    month = month % 12 + 1
+    day = min(dt.day, calendar.monthrange(year, month)[1])
+    return datetime(year, month, day)
 
 
 def calculate_bsd(price):
@@ -142,7 +149,7 @@ def simulate_accumulation(start_cash, start_cpf, monthly_savings, monthly_cpf,
     current = BOOKING_DATE
 
     for i in range(total_months + 1):
-        dt = current + relativedelta(months=i)
+        dt = add_months(current, i)
         key = (dt.year, dt.month)
         event = ""
 
@@ -393,9 +400,9 @@ ms_df = pd.DataFrame(result["milestones"])
 
 def style_milestone_row(row):
     if row["Status"] == "BREACH":
-        return ["background-color: #ffcccc"] * len(row)
+        return ["background-color: #ffcccc; color: #721c24"] * len(row)
     elif row["Status"] == "WARNING":
-        return ["background-color: #fff3cd"] * len(row)
+        return ["background-color: #fff3cd; color: #856404"] * len(row)
     return [""] * len(row)
 
 display_df = ms_df.copy()
@@ -544,5 +551,5 @@ def style_verdict(val):
     else:
         return "background-color: #f8d7da; color: #721c24"
 
-styled = comp_df.style.applymap(style_verdict, subset=["Verdict"])
+styled = comp_df.style.map(style_verdict, subset=["Verdict"])
 st.dataframe(styled, use_container_width=True, hide_index=True)
