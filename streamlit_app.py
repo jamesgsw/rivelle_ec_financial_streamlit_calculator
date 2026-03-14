@@ -128,7 +128,8 @@ def compute_dps_milestones(price, bsd, starting_cash, starting_cpf, liquidity_fl
 
 
 def simulate_accumulation(start_cash, start_cpf, monthly_savings, monthly_cpf,
-                          cpf_annual_rate, milestones_list, total_months=50):
+                          cpf_annual_rate, milestones_list, total_months=50,
+                          top_event=None, csc_event=None):
     quarterly_rate = cpf_annual_rate / 4
 
     milestone_map = {}
@@ -142,6 +143,14 @@ def simulate_accumulation(start_cash, start_cpf, monthly_savings, monthly_cpf,
         existing_event = milestone_map[key]["event"]
         if m["Milestone"] not in existing_event:
             milestone_map[key]["event"] = existing_event + " + " + m["Milestone"]
+
+    if top_event:
+        key = (TOP_DATE.year, TOP_DATE.month)
+        milestone_map[key] = {"cash_out": top_event["cash"], "cpf_out": top_event["cpf"], "event": "TOP (65%)"}
+
+    if csc_event:
+        key = (CSC_DATE.year, CSC_DATE.month)
+        milestone_map[key] = {"cash_out": csc_event["cash"], "cpf_out": csc_event["cpf"], "event": "CSC (15%)"}
 
     records = []
     cash = start_cash
@@ -192,12 +201,12 @@ def run_full_simulation(price, income, monthly_savings, monthly_cpf, starting_ca
     top_months = (TOP_DATE.year - BOOKING_DATE.year) * 12 + (TOP_DATE.month - BOOKING_DATE.month)
     csc_months = (CSC_DATE.year - BOOKING_DATE.year) * 12 + (CSC_DATE.month - BOOKING_DATE.month)
 
-    df = simulate_accumulation(
+    df_pre = simulate_accumulation(
         starting_cash, starting_cpf, monthly_savings, monthly_cpf,
-        cpf_rate, milestones, total_months=csc_months
+        cpf_rate, milestones, total_months=top_months
     )
 
-    top_row = df[df["Month"] == top_months].iloc[0]
+    top_row = df_pre[df_pre["Month"] == top_months].iloc[0]
     cash_at_top = top_row["Cash Balance"]
     cpf_at_top = top_row["CPF OA Balance"]
 
@@ -222,6 +231,15 @@ def run_full_simulation(price, income, monthly_savings, monthly_cpf, starting_ca
 
     cpf_for_csc = min(cpf_at_csc, amount_due_csc)
     cash_for_csc = min(max(0, cash_at_csc - liquidity_floor), amount_due_csc - cpf_for_csc)
+
+    top_event = {"cash": cash_for_top, "cpf": cpf_for_top}
+    csc_event = {"cash": cash_for_csc, "cpf": cpf_for_csc}
+
+    df = simulate_accumulation(
+        starting_cash, starting_cpf, monthly_savings, monthly_cpf,
+        cpf_rate, milestones, total_months=csc_months,
+        top_event=top_event, csc_event=csc_event
+    )
     csc_funding = cpf_for_csc + cash_for_csc
     csc_surplus = csc_funding - amount_due_csc
 
